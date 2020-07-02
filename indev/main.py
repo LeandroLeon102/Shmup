@@ -1,17 +1,41 @@
 import sys
-import time, threading
+import time
 from sprites import *
 
+def check_new_game():
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            game.running = False
+            pygame.quit()
+            sys.exit()
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_ESCAPE:
+                game.running = False
+                pygame.quit()
+                sys.exit()
+        if event.type == pygame.KEYUP:
+            if event.key != pygame.K_ESCAPE:
+                game.new_game()
+                waiting = False
 
-def draw_text(text, size, color, x, y):
+def draw_lives(lives):
+    x = 400
+    for i in range(lives):
+        img_rect = life_img.get_rect()
+        img_rect.x = x
+        img_rect.y = 5
+        game.screen.blit(life_img, img_rect)
+        x += 50
+
+def draw_text(surface, text, size, color, x, y):
     font = pygame.font.Font((path.join(img_dir, "kenvector_future_thin.ttf")), size)
     text = font.render(text, True, color)
     text_rect = text.get_rect()
     text_rect.midtop = (x, y)
-    game.screen.blit(text, text_rect)
+    surface.blit(text, text_rect)
 
-def draw_points(points, color, x, y):
-    draw_text(points, 12, color, x, y)
+def draw_points(surface, points, color, x, y):
+    draw_text(surface, points, 12, color, x, y)
     time.sleep(1)
 
 def draw_player_shield(pct):
@@ -29,20 +53,18 @@ def draw_player_shield(pct):
     else:
         pygame.draw.rect(game.screen, GREEN, fill_rect)
     pygame.draw.rect(game.screen, WHITE, outline_rect, 3)
-    draw_text((str(int(pct/100 * bar_length))) + "%", 16, WHITE, 55, 4)
-
+    draw_text(game.screen, (str(int(pct/100 * bar_length))) + "%", 16, WHITE, 55, 4)
 
 def update():
     all_sprites.update()
 
 
 class Game:
-
     # Initialize game window, etc
     def __init__(self):
         pygame.init()
         pygame.mixer.init()
-        pygame.display.set_caption(TITLE)
+        pygame.display.set_caption("Shmup!")
         self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
         self.clock = pygame.time.Clock()
         self.running = True
@@ -50,6 +72,13 @@ class Game:
         self.playing = False
         self.player = None
         self.m = None
+        self.wait = None
+
+    def spawn_mob(self, num):
+        for x in range(num):
+            self.m = Mob()
+            mobs.add(self.m)
+            all_sprites.add(self.m)
 
     # Start New Game
     def new_game(self):
@@ -57,10 +86,7 @@ class Game:
         self.player = Player()
         all_sprites.add(self.player)
         all_sprites.add(bullets)
-        for m in range(8):
-            self.m = Mob()
-            mobs.add(self.m)
-        all_sprites.add(mobs)
+        self.spawn_mob(8)
         self.run()
 
     # Game Loop
@@ -79,10 +105,7 @@ class Game:
                 if self.playing:
                     self.playing = False
                     game.start_screen()
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_SPACE:
-                    laser_snd.play()
-                    self.player.shoot()
+
             if event.type == pygame.KEYUP:
                 if event.key == pygame.K_ESCAPE:
                     if self.playing:
@@ -92,25 +115,37 @@ class Game:
         # Check if a mob hits the player
         hits = pygame.sprite.spritecollide(self.player, mobs, True, pygame.sprite.collide_circle)
         if hits:
+            self.wait = pygame.time.get_ticks()
+
+            for hit in hits:
+                e = Explotion(hit.rect.center, 'sm')
+                all_sprites.add(e)
+                self.player.shield -= int(hit.radius * 0.75)
+                print(str(int(hit.radius * 0.75)))
+                self.spawn_mob(1)
 
 
+                if self.player.shield <= 0 and self.player.lives != 0:
+                    death_explotion = Explotion(self.player.rect.center, 'lg')
+                    all_sprites.add(death_explotion)
+                    self.player.hide()
+                    self.player.lives -= 1
+                    self.player.shield = 100
+        elif self.player.lives == 0:
+            death_explotion = Explotion(self.player.rect.center, 'lg')
+            all_sprites.add(death_explotion)
+            self.player.kill()
 
-            self.player.shield += int(-(self.m.radius / 3))
-            for i in range(1):
-                self.m = Mob()
-                all_sprites.add(self.m)
-                mobs.add(self.m)
-                if self.player.shield <= 0:
-                    if self.playing:
-                        self.playing = False
-                        game.start_screen()
+            if pygame.time.get_ticks() - self.wait >= 1000:
+                self.playing = False
+                self.game_over_screen(self.score)
 
         # Check if a bullet hits a mob
         hits = pygame.sprite.groupcollide(bullets, mobs, True, True, pygame.sprite.collide_circle)
         if hits:
             for hit in hits:
-                e = Explotion(hit.rect.center)
-                all_sprites.add(e)
+                self.e = Explotion(hit.rect.center, 'lg')
+                all_sprites.add(self.e)
             #print("mob radius =", self.m.radius, ", points =", (50 - self.m.radius))
             self.score += (50 - self.m.radius)
             for i in range(1):
@@ -121,7 +156,8 @@ class Game:
     # Game Loop - Draw
     def draw(self):
         self.screen.blit(background, background_rect)
-        draw_text(str(game.score), 32, WHITE, WIDTH/2, 10)
+        draw_lives(self.player.lives)
+        draw_text(self.screen, str(game.score), 32, WHITE, WIDTH/2, 10)
         draw_player_shield(self.player.shield)
         all_sprites.draw(self.screen)
         pygame.display.flip()
@@ -131,33 +167,31 @@ class Game:
         all_sprites.empty()
         mobs.empty()
         bullets.empty()
-        self.screen.blit(background, background_rect)
 
-        draw_text("Shmup!", 64, WHITE, WIDTH / 2, HEIGHT / 4)
-        draw_text("Arrow keys to move, space to fire", 22, WHITE, WIDTH / 2, HEIGHT / 2)
-        draw_text("press a key to begin or scape to exit", 18, WHITE, WIDTH / 2, HEIGHT * 3 / 4)
+        self.screen.blit(background, background_rect)
+        draw_text(self.screen, "Shmup!", 64, WHITE, WIDTH / 2, HEIGHT / 4)
+        draw_text(self.screen, "Arrow keys to move, space to fire", 22, WHITE, WIDTH / 2, HEIGHT / 2)
+        draw_text(self.screen, "press a key to begin or scape to exit", 18, WHITE, WIDTH / 2, HEIGHT * 3 / 4)
         waiting = True
         pygame.display.flip()
         while waiting:
             self.clock.tick(FPS)
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    game.running = False
-                    pygame.quit()
-                    sys.exit()
-                if event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_ESCAPE:
-                        game.running = False
-                        pygame.quit()
-                        sys.exit()
-                if event.type == pygame.KEYUP:
-                    if event.key != pygame.K_ESCAPE:
-                        game.new_game()
-                        waiting = False
+            check_new_game()
 
     # Game Over/Continue
-    def game_over_screen(self):
-        pass
+    def game_over_screen(self, score):
+        self.wait = pygame.time.get_ticks()
+        self.screen.blit(background, background_rect)
+        draw_text(self.screen, "GAME OVER", 64, WHITE, WIDTH / 2, HEIGHT / 4)
+        draw_text(self.screen, "Your Score: " + str(score), 32, WHITE, WIDTH / 2, HEIGHT / 2)
+        pygame.display.flip()
+
+        waiting = True
+        while waiting:
+            self.clock.tick(FPS)
+            if pygame.time.get_ticks() - self.wait >= 2000:
+                self.start_screen()
+            check_new_game()
 
 
 game = Game()

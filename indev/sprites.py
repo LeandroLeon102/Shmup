@@ -1,7 +1,6 @@
 from settings import *
 import pygame
 import random
-from os import path
 
 all_sprites = pygame.sprite.Group()
 bullets = pygame.sprite.Group()
@@ -9,27 +8,40 @@ mobs = pygame.sprite.Group()
 
 pygame.mixer.init()
 
+
 class Player(pygame.sprite.Sprite):
     def __init__(self):
         pygame.sprite.Sprite.__init__(self)
         self.image = player_ship
         self.rect = self.image.get_rect()
         self.radius = int(self.rect.width * .35)
-        # pygame.draw.circle(self.image, GREEN, (self.rect.center), self.radius)
         self.shield = 100
+        self.lives = 3
         self.rect.centerx = WIDTH / 2
-        self.rect.bottom = HEIGHT-10
+        self.rect.bottom = HEIGHT - 10
         self.velx = 0
         self.accx = 0
         self.key_down = None
+        self.shoot_delay = 250
+        self.last_shoot = pygame.time.get_ticks()
+        self.hidden = False
+        self.hide_timer = pygame.time.get_ticks()
 
     def update(self):
+        # unhide if hidden
+        if self.hidden and pygame.time.get_ticks() - self.hide_timer >= 1500 and self.lives != 0:
+            self.hidden = False
+            self.rect.centerx = (WIDTH / 2)
+            self.rect.bottom = (HEIGHT - 10)
+
         self.accx = 0
         self.key_down = pygame.key.get_pressed()
         if self.key_down[pygame.K_LEFT]:
-            self.accx = -0.5
+            self.accx = -0.3
         if self.key_down[pygame.K_RIGHT]:
-            self.accx = 0.5
+            self.accx = 0.3
+        if self.key_down[pygame.K_SPACE]:
+            self.shoot()
         self.rect.x += self.velx
         if self.rect.left < 0:
             self.velx = 0
@@ -41,11 +53,20 @@ class Player(pygame.sprite.Sprite):
         self.rect.centerx += self.velx
 
     def shoot(self):
-        bullet = Bullet(self.rect.centerx, self.rect.top)
-        bullets.add(bullet)
-        all_sprites.add(bullet)
-        if self.rect.bottom < 0:
-            self.kill()
+        now = pygame.time.get_ticks()
+        if now - self.last_shoot > self.shoot_delay:
+            laser_snd.play()
+            self.last_shoot = now
+            bullet = Bullet(self.rect.centerx, self.rect.top)
+            bullets.add(bullet)
+            all_sprites.add(bullet)
+            if self.rect.bottom < 0:
+                self.kill()
+
+    def hide(self):
+        self.hidden = True
+        self.hide_timer = pygame.time.get_ticks()
+        self.rect.center = (WIDTH / 2, HEIGHT + 200 )
 
 
 class Mob(pygame.sprite.Sprite):
@@ -55,7 +76,6 @@ class Mob(pygame.sprite.Sprite):
         self.image = self.image_orig.copy()
         self.rect = self.image.get_rect()
         self.radius = int(self.rect.width * .80 / 2)
-        #pygame.draw.circle(self.image_orig, RED, (self.rect.center), self.radius)
         self.rect.x = random.randrange(0, (WIDTH - 20))
         self.rect.bottom = 0
         self.speedx = random.randrange(-2, 2)
@@ -63,6 +83,10 @@ class Mob(pygame.sprite.Sprite):
         self.rot = 0
         self.rot_speed = random.randrange(-8, 8)
         self.last_update = pygame.time.get_ticks()
+        self.old_center = None
+        self.new_image = None
+        self.posy = None
+        self.posx = None
 
     def rotate(self):
         now = pygame.time.get_ticks()
@@ -101,42 +125,25 @@ class Bullet(pygame.sprite.Sprite):
 
 
 class Explotion(pygame.sprite.Sprite):
-    def __init__(self, center):
+    def __init__(self, center, size):
         pygame.sprite.Sprite.__init__(self)
+        self.size = size
         self.current_img = 0
-        self.image = explotion_anim[self.current_img]
+        self.image = explotion_anim[self.size][self.current_img]
         self.rect = self.image.get_rect()
         self.rect.center = center
         self.last_update = pygame.time.get_ticks()
         explotion_snd.play()
+        self.now = None
 
     def update(self):
         center = self.rect.center
         self.rect = self.image.get_rect()
         self.rect.center = center
         self.now = pygame.time.get_ticks()
-        if self.now - self.last_update > 60:
+        if self.now - self.last_update > 100:
             self.last_update = self.now
             self.current_img += 1
-            self.image = explotion_anim[self.current_img]
+            self.image = explotion_anim[self.size][self.current_img]
             if self.current_img >= 8:
                 self.kill()
-
-
-class Button(pygame.sprite.Sprite):
-    def __init__(self, text, x, y):
-        pygame.sprite.Sprite.__init__(self)
-        self.image = pygame.Surface((200, 50))
-        self.image.fill(DARK_GRAY)
-        self.content =  None
-        self.rect = self.image.get_rect()
-        self.rect.center.x = x
-        self.rect.center.y = y
-
-    def update(self):
-        self.focussed = pygame.mouse.get_focused()
-        if self.focussed:
-            self.image.fill(LIGHT_GRAY)
-        else:
-            self.image.fill(DARK_GRAY)
-

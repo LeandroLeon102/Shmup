@@ -1,4 +1,4 @@
-#Shmup!(v1.0.0)
+#Shmup!(v1.0.5)
 
 #### Description of the game:
 
