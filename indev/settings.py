@@ -2,10 +2,6 @@
 from os import path
 import pygame
 
-
-
-
-
 # ---Window settings
 WIDTH = 600
 HEIGHT = 800
@@ -20,12 +16,16 @@ RED = 255, 0, 0
 GREEN = 0, 255, 0
 BLUE = 0, 0, 255
 YELLOW = 255, 255, 0
+ORANGE = 200, 130, 0
 
 # ---Directories
 img_dir = path.join(path.dirname(__file__), "images")
-meteor_dir = path.join(img_dir, "meteors")
-explotion_dir = path.join(img_dir, "explotion")
 snd_dir = path.join(path.dirname(__file__), "sounds")
+
+meteor_dir = path.join(img_dir, "meteors")
+powerups_dir = path.join(img_dir, "powerups")
+explotion_dir = path.join(img_dir, "explotion")
+
 
 # ---Global variables
 clock = pygame.time.Clock()
@@ -38,9 +38,11 @@ background = pygame.transform.scale(background, (WIDTH, HEIGHT))
 background_rect = background.get_rect()
 
 life_img = pygame.image.load(path.join(img_dir, "playerLife2_orange.png"))
+life_bg = pygame.image.load(path.join(img_dir, "playerLife2_gray.png"))
+
 player_ship = pygame.image.load(path.join(img_dir, "playerShip2_orange.png"))
 laser = pygame.image.load(path.join(img_dir, "laserBlue01.png"))
-laser_snd = pygame.mixer.Sound(path.join(snd_dir, "sfx_laser1.wav"))
+laser_snd = pygame.mixer.Sound(path.join(snd_dir, "sfx_laser1-.wav"))
 
 
 meteor_images = []
@@ -56,12 +58,16 @@ meteor_list = ['meteorBrown_big1.png', 'meteorBrown_big3.png',
 for img in meteor_list:
     meteor_images.append(pygame.image.load(path.join(meteor_dir, img)))
 
-explotion_anim = {}
-explotion_anim['lg'] = []
-explotion_anim['sm'] = []
+explotion_anim = {'lg': [], 'sm': []}
 for i in range(9):
     filename = 'regularExplosion0{}.png'.format(i)
-    explotion_anim['sm'].append(pygame.transform.scale(pygame.image.load(path.join(explotion_dir, filename)), (int(192/3), int(192/3))))
+    explotion_anim['sm'].append(pygame.transform.scale(pygame.image.load(path.join(explotion_dir, filename)),
+                                                       (int(192/3), int(192/3))))
     explotion_anim['lg'].append(pygame.image.load(path.join(explotion_dir, filename)))
 explotion_snd = pygame.mixer.Sound(path.join(snd_dir, "explosion.wav"))
+explotion_snd.set_volume(.2)
 
+powerup_images = {'shield': pygame.image.load(path.join(powerups_dir, "powerupGreen_shield.png")),
+                  'live': pygame.image.load(path.join(powerups_dir, "powerupGreen_live.png"))}
+
+enemy_ship_img = []
